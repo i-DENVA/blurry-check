@@ -1,6 +1,6 @@
 {
   "name": "blurry-check",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "description": "A comprehensive blur detection library for images and PDFs that works across all JavaScript frameworks",
   "main": "lib/index.js",
   "module": "lib/index.esm.js",
@@ -38,7 +38,12 @@
     "vue",
     "qwik"
   ],
-  "author": "Idenva <hello@idenva.com>",
+  "author": "Idenva <admin@idenva.com>",
+  "maintainers": [
+    "Idenva <admin@idenva.com>",
+    "James Ugbanu <jamesugbanu@gmail.com>",
+    "Emeka Ugbanu <emekaugbanu@gmail.com>"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
