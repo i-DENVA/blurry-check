@@ -152,9 +152,6 @@ export default function BlurDetectionDemo() {
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           Upload images or PDFs to test our advanced blur detection and quality analysis algorithms
         </p>
-        <p className="text-sm text-gray-500">
-          Maintained by <a href="https://idenva.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-medium">Idenva.com</a>
-        </p>
       </div>
 
       {/* Configuration Panel */}
@@ -412,6 +409,13 @@ export default function BlurDetectionDemo() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="text-center py-8 border-t border-gray-200">
+        <p className="text-sm text-gray-500">
+          Maintained by <a href="https://idenva.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-medium">Idenva.com</a>
+        </p>
       </div>
     </div>
   )

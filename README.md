@@ -2,6 +2,12 @@
 
 A comprehensive, framework-agnostic blur detection library for images and PDFs. Detect blurry images and low-quality scanned documents with ease across any JavaScript framework including React, Angular, Vue, Qwik, and plain JavaScript.
 
+## 🎯 Try the Live Demo
+
+**[Try Blurry Check Demo →](https://blurry-check-demo.vercel.app/)**
+
+Test the library with your own images and PDFs in our interactive demo. Upload files to see real-time blur detection and quality analysis in action.
+
 ## ✨ Features
 
 - 🖼️ **Image Blur Detection** - Detect blurry images using advanced edge detection algorithms
