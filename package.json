@@ -12,6 +12,7 @@
   ],
   "scripts": {
     "build": "rollup -c",
+    "build:demo": "npm run build && cp -r lib/* demo/src/lib/",
     "dev": "rollup -c -w",
     "test": "jest",
     "test:watch": "jest --watch",

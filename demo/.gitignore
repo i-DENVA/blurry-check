@@ -37,3 +37,6 @@ next-env.d.ts
 # Logs
 logs
 *.log
+
+# Local lib copy (build artifacts)
+src/lib/

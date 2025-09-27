@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useRef } from 'react'
-import { BlurryCheck } from '../../../lib/index.esm.js'
-import type { BlurAnalysisResult, PDFAnalysisResult } from '../../../lib/types'
+import { BlurryCheck } from '../lib/index.esm.js'
+import type { BlurAnalysisResult, PDFAnalysisResult } from '../lib/types'
 import { Upload, FileImage, FileText, CheckCircle, XCircle, BarChart3, Settings, Loader2 } from 'lucide-react'
 
 type AnalysisResult = BlurAnalysisResult | PDFAnalysisResult
