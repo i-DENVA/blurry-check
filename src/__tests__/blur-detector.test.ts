@@ -2,11 +2,9 @@ import { BlurDetector } from '../blur-detector';
 import { BlurDetectionConfig } from '../types';
 
 // Mock canvas and image data
-const mockImageData = {
-  width: 100,
-  height: 100,
-  data: new Uint8ClampedArray(100 * 100 * 4).fill(128) // Gray image
-};
+const mockImageData = new ImageData(100, 100);
+// Fill with gray data
+mockImageData.data.fill(128);
 
 const mockCanvas = {
   getContext: jest.fn(() => ({
@@ -156,7 +154,8 @@ describe('BlurDetector', () => {
         canvas: failingCanvas as any,
       });
 
-      await expect(failingDetector.analyzeImage(mockImageData as ImageData))
+      // Use a File input to trigger canvas context usage
+      await expect(failingDetector.analyzeImage(mockFile))
         .rejects.toThrow('Could not get 2D context from canvas');
     });
   });

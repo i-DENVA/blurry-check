@@ -7,7 +7,9 @@ export default {
     '**/*.(test|spec).+(ts|tsx|js)'
   ],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      useESM: true
+    }],
   },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
@@ -16,13 +18,8 @@ export default {
     '!src/**/*.spec.{ts,tsx}',
   ],
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-  extensionsToTreatAsEsm: ['.ts'],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  }
+  extensionsToTreatAsEsm: ['.ts']
 };
