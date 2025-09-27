@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blurry Check - Vanilla JS Example</title>
+    <script src="https://unpkg.com/blurry-check/lib/index.umd.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            transition: border-color 0.3s;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+        
+        .upload-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .upload-btn:hover {
+            background: #5a67d8;
+        }
+        
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        
+        .result.blur {
+            background: #fed7d7;
+            color: #c53030;
+        }
+        
+        .result.clear {
+            background: #c6f6d5;
+            color: #2f855a;
+        }
+        
+        .preview {
+            max-width: 100%;
+            max-height: 300px;
+            margin: 20px 0;
+            border-radius: 6px;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+        }
+        
+        .metrics {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        
+        .config-panel {
+            background: #edf2f7;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        .config-row {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            gap: 15px;
+        }
+        
+        .config-row label {
+            min-width: 120px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Blurry Check - Vanilla JS Example</h1>
+        <p>Upload an image or PDF to test blur detection using vanilla JavaScript.</p>
+        
+        <!-- Configuration Panel -->
+        <div class="config-panel">
+            <h3>Configuration</h3>
+            <div class="config-row">
+                <label>Method:</label>
+                <select id="method">
+                    <option value="edge">Edge Detection (Fast)</option>
+                    <option value="laplacian">OpenCV Laplacian (Accurate)</option>
+                    <option value="both">Both Methods (Best)</option>
+                </select>
+            </div>
+            <div class="config-row">
+                <label>Edge Threshold:</label>
+                <input type="range" id="edgeThreshold" min="0.1" max="2" step="0.1" value="0.5">
+                <span id="edgeValue">0.5</span>
+            </div>
+            <div class="config-row">
+                <label>Debug Mode:</label>
+                <input type="checkbox" id="debug">
+            </div>
+        </div>
+        
+        <!-- Upload Area -->
+        <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" accept="image/*,.pdf" style="display: none;">
+            <div>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    Choose File
+                </button>
+                <p>or drag and drop an image/PDF here</p>
+                <small>Supports: JPG, PNG, GIF, BMP, WebP, PDF</small>
+            </div>
+        </div>
+        
+        <!-- Loading Indicator -->
+        <div class="loading" id="loading">
+            <p>🔄 Analyzing file...</p>
+        </div>
+        
+        <!-- File Preview -->
+        <div id="preview" style="display: none;">
+            <h3>File Preview</h3>
+            <img id="previewImage" class="preview" style="display: none;">
+            <div id="pdfInfo" style="display: none;">
+                <p><strong>PDF File:</strong> <span id="fileName"></span></p>
+                <p><strong>Size:</strong> <span id="fileSize"></span> MB</p>
+            </div>
+        </div>
+        
+        <!-- Results -->
+        <div id="result" style="display: none;"></div>
+        
+        <!-- Detailed Metrics -->
+        <div id="metrics" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Initialize BlurryCheck
+        const { BlurryCheck } = window.BlurryCheck || window;
+        let checker = new BlurryCheck({
+            method: 'edge',
+            edgeWidthThreshold: 0.5,
+            debug: false
+        });
+
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const loading = document.getElementById('loading');
+        const preview = document.getElementById('preview');
+        const previewImage = document.getElementById('previewImage');
+        const pdfInfo = document.getElementById('pdfInfo');
+        const result = document.getElementById('result');
+        const metrics = document.getElementById('metrics');
+        
+        // Configuration elements
+        const methodSelect = document.getElementById('method');
+        const edgeThreshold = document.getElementById('edgeThreshold');
+        const edgeValue = document.getElementById('edgeValue');
+        const debugCheckbox = document.getElementById('debug');
+
+        // Update configuration
+        function updateConfig() {
+            const config = {
+                method: methodSelect.value,
+                edgeWidthThreshold: parseFloat(edgeThreshold.value),
+                debug: debugCheckbox.checked
+            };
+            checker = new BlurryCheck(config);
+            edgeValue.textContent = edgeThreshold.value;
+        }
+
+        // Event listeners for configuration
+        methodSelect.addEventListener('change', updateConfig);
+        edgeThreshold.addEventListener('input', updateConfig);
+        debugCheckbox.addEventListener('change', updateConfig);
+
+        // File handling
+        fileInput.addEventListener('change', handleFile);
+        
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length > 0) {
+                handleFileObject(files[0]);
+            }
+        });
+
+        function handleFile(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileObject(file);
+            }
+        }
+
+        async function handleFileObject(file) {
+            showLoading(true);
+            hideResults();
+            
+            // Show preview
+            showPreview(file);
+            
+            try {
+                let analysisResult;
+                
+                if (file.type === 'application/pdf') {
+                    analysisResult = await checker.analyzePDF(file);
+                    showPDFResult(analysisResult);
+                } else {
+                    analysisResult = await checker.analyzeImage(file);
+                    showImageResult(analysisResult);
+                }
+                
+                showMetrics(analysisResult);
+                
+            } catch (error) {
+                showError('Analysis failed: ' + error.message);
+                console.error('Analysis error:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showPreview(file) {
+            preview.style.display = 'block';
+            
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                    pdfInfo.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                previewImage.style.display = 'none';
+                pdfInfo.style.display = 'block';
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileSize').textContent = (file.size / 1024 / 1024).toFixed(2);
+            }
+        }
+
+        function showImageResult(analysisResult) {
+            const isBlurry = analysisResult.isBlurry;
+            const confidence = (analysisResult.confidence * 100).toFixed(1);
+            
+            result.innerHTML = `
+                <div class="result ${isBlurry ? 'blur' : 'clear'}">
+                    ${isBlurry ? '❌ Image is BLURRY' : '✅ Image is CLEAR'}
+                    <br>
+                    <small>Confidence: ${confidence}% | Method: ${analysisResult.method}</small>
+                </div>
+            `;
+            result.style.display = 'block';
+        }
+
+        function showPDFResult(analysisResult) {
+            const isGood = analysisResult.isQualityGood;
+            
+            result.innerHTML = `
+                <div class="result ${isGood ? 'clear' : 'blur'}">
+                    ${isGood ? '✅ PDF Quality is GOOD' : '❌ PDF Quality is POOR'}
+                    <br>
+                    <small>
+                        Type: ${analysisResult.isScanned ? 'Scanned' : 'Text-based'} | 
+                        Pages: ${analysisResult.pagesAnalyzed}
+                    </small>
+                </div>
+            `;
+            result.style.display = 'block';
+        }
+
+        function showMetrics(analysisResult) {
+            let metricsHTML = '<h3>📊 Detailed Analysis</h3>';
+            
+            if (analysisResult.metrics) {
+                if (analysisResult.metrics.edgeAnalysis) {
+                    const edge = analysisResult.metrics.edgeAnalysis;
+                    metricsHTML += `
+                        <div><strong>Edge Analysis:</strong></div>
+                        <ul>
+                            <li>Dimensions: ${edge.width} × ${edge.height}</li>
+                            <li>Edges detected: ${edge.numEdges}</li>
+                            <li>Average edge width: ${edge.avgEdgeWidth.toFixed(2)}px</li>
+                            <li>Edge width percentage: ${edge.avgEdgeWidthPerc.toFixed(2)}%</li>
+                        </ul>
+                    `;
+                }
+                
+                if (analysisResult.metrics.laplacianVariance !== undefined) {
+                    metricsHTML += `
+                        <div><strong>OpenCV Analysis:</strong></div>
+                        <ul>
+                            <li>Laplacian variance: ${analysisResult.metrics.laplacianVariance.toFixed(2)}</li>
+                        </ul>
+                    `;
+                }
+            }
+            
+            if (analysisResult.pageResults) {
+                metricsHTML += `
+                    <div><strong>Page Analysis:</strong></div>
+                    <ul>
+                `;
+                analysisResult.pageResults.forEach((pageResult, index) => {
+                    metricsHTML += `
+                        <li>Page ${index + 1}: ${pageResult.isBlurry ? 'Blurry' : 'Clear'} 
+                            (${(pageResult.confidence * 100).toFixed(1)}% confidence)</li>
+                    `;
+                });
+                metricsHTML += '</ul>';
+            }
+            
+            metrics.innerHTML = metricsHTML;
+            metrics.style.display = 'block';
+        }
+
+        function showError(message) {
+            result.innerHTML = `
+                <div class="result blur">
+                    ❌ ${message}
+                </div>
+            `;
+            result.style.display = 'block';
+        }
+
+        function showLoading(show) {
+            loading.style.display = show ? 'block' : 'none';
+        }
+
+        function hideResults() {
+            result.style.display = 'none';
+            metrics.style.display = 'none';
+        }
+
+        // Initialize edge threshold display
+        edgeThreshold.addEventListener('input', () => {
+            edgeValue.textContent = edgeThreshold.value;
+        });
+    </script>
+</body>
+</html>
