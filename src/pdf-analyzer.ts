@@ -185,6 +185,7 @@ export class PDFAnalyzer {
     isLikelyHeaderPage: boolean;
     textDensity: number;
     hasLowTextContent: boolean;
+    isCertificateDocument: boolean;
   } {
     const textItems = textContent.items || [];
     const totalText = textItems.map((item: any) => item.str).join(' ').trim();
@@ -200,17 +201,23 @@ export class PDFAnalyzer {
     const hasDatePattern = /\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}|\w+ \d{1,2}, \d{4}/i.test(totalText);
     const hasAmountPattern = /\$[\d,]+\.?\d*|USD|EUR|GBP/i.test(totalText);
     
+    // Check for certificate patterns - these are valid documents with graphics
+    const hasCertificateKeywords = /certificate|certification|certified|diploma|award|achievement|completion|graduate|license|licence|accredited|qualification/i.test(totalText);
+    const hasOfficialLanguage = /hereby|certify|certifies|awarded|granted|presented|conferred|issued|authority|institution|organization/i.test(totalText);
+    const isCertificateDocument = hasCertificateKeywords && hasOfficialLanguage;
+    
     const isLikelyHeaderPage = isFirstPage && (
       hasLowTextContent || 
       (hasHeaderKeywords && hasDatePattern && hasAmountPattern && textLength < 500)
-    );
+    ) && !isCertificateDocument; // Don't treat certificates as header pages
     
-    this.log(`Page ${pageNumber} content analysis: textLength=${textLength}, textDensity=${textDensity.toFixed(1)}, isLikelyHeader=${isLikelyHeaderPage}`);
+    this.log(`Page ${pageNumber} content analysis: textLength=${textLength}, textDensity=${textDensity.toFixed(1)}, isLikelyHeader=${isLikelyHeaderPage}, isCertificate=${isCertificateDocument}`);
     
     return {
       isLikelyHeaderPage,
       textDensity,
-      hasLowTextContent
+      hasLowTextContent,
+      isCertificateDocument
     };
   }
 
@@ -399,8 +406,14 @@ export class PDFAnalyzer {
               // Smart blur decision based on content type
               let finalIsBlurry = pageAnalysis.isBlurry || textSharpness.isTextBlurry;
               
+              // If this looks like a certificate, be very lenient (certificates often have graphics)
+              if (contentAnalysis.isCertificateDocument) {
+                // Only consider blurry if text sharpness is very poor
+                finalIsBlurry = textSharpness.textSharpnessScore < 0.3; // Very lenient for certificates
+                this.log(`Page ${i} identified as certificate document - using very lenient blur criteria`);
+              }
               // If this looks like a header/logo page, be more lenient
-              if (contentAnalysis.isLikelyHeaderPage) {
+              else if (contentAnalysis.isLikelyHeaderPage) {
                 // Only consider blurry if text sharpness is very poor
                 finalIsBlurry = textSharpness.textSharpnessScore < 0.5; // More lenient threshold
                 this.log(`Page ${i} identified as likely header/logo page - using lenient blur criteria`);
@@ -410,7 +423,7 @@ export class PDFAnalyzer {
                 ...pageAnalysis,
                 isBlurry: finalIsBlurry,
                 confidence: Math.max(pageAnalysis.confidence, textSharpness.textSharpnessScore),
-                method: `${pageAnalysis.method} + Text Analysis${contentAnalysis.isLikelyHeaderPage ? ' (Header-adjusted)' : ''}`,
+                method: `${pageAnalysis.method} + Text Analysis${contentAnalysis.isCertificateDocument ? ' (Certificate-adjusted)' : contentAnalysis.isLikelyHeaderPage ? ' (Header-adjusted)' : ''}`,
                 metrics: {
                   ...pageAnalysis.metrics,
                   textSharpness: textSharpness,
