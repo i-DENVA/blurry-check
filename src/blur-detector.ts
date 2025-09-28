@@ -12,9 +12,9 @@ export class BlurDetector {
 
   constructor(config: BlurDetectionConfig = {}) {
     this.config = {
-      edgeWidthThreshold: config.edgeWidthThreshold ?? 0.5,
-      laplacianThreshold: config.laplacianThreshold ?? 100,
-      method: config.method ?? 'edge',
+      edgeWidthThreshold: config.edgeWidthThreshold ?? 0.3,
+      laplacianThreshold: config.laplacianThreshold ?? 150,
+      method: config.method ?? 'both',
       openCvUrl: config.openCvUrl ?? 'https://docs.opencv.org/4.5.4/opencv.js',
       canvas: config.canvas ?? this.createCanvas(),
       debug: config.debug ?? false

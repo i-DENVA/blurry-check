@@ -97,9 +97,9 @@ console.log('Blur analysis:', analysis);
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `method` | `'edge' \| 'laplacian' \| 'both'` | `'edge'` | Detection method to use |
-| `edgeWidthThreshold` | `number` | `0.5` | Threshold for edge detection (0-100) |
-| `laplacianThreshold` | `number` | `100` | Threshold for OpenCV Laplacian variance |
+| `method` | `'edge' \| 'laplacian' \| 'both'` | `'both'` | Detection method to use |
+| `edgeWidthThreshold` | `number` | `0.3` | Threshold for edge detection (0-100) |
+| `laplacianThreshold` | `number` | `150` | Threshold for OpenCV Laplacian variance |
 | `openCvUrl` | `string` | OpenCV CDN | Custom OpenCV.js URL |
 | `canvas` | `HTMLCanvasElement` | auto-created | Canvas element for processing |
 | `debug` | `boolean` | `false` | Enable debug logging |
@@ -184,7 +184,7 @@ import { BlurryCheck } from 'blurry-check';
 
 const ImageUploader: React.FC = () => {
   const [isBlurry, setIsBlurry] = useState<boolean | null>(null);
-  const checker = new BlurryCheck({ debug: true });
+  const checker = new BlurryCheck({ method: 'both', debug: true });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -222,7 +222,7 @@ import { ref } from 'vue';
 import { BlurryCheck } from 'blurry-check';
 
 const result = ref<boolean | null>(null);
-const checker = new BlurryCheck();
+const checker = new BlurryCheck({ method: 'both' });
 
 const handleFileChange = async (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0];
@@ -250,7 +250,7 @@ import { BlurryCheck } from 'blurry-check';
 })
 export class ImageCheckerComponent {
   isBlurry: boolean | null = null;
-  private checker = new BlurryCheck();
+  private checker = new BlurryCheck({ method: 'both' });
 
   async onFileChange(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
@@ -269,7 +269,7 @@ import { BlurryCheck } from 'blurry-check';
 
 export const ImageChecker = component$(() => {
   const isBlurry = useSignal<boolean | null>(null);
-  const checker = new BlurryCheck();
+  const checker = new BlurryCheck({ method: 'both' });
 
   return (
     <div>

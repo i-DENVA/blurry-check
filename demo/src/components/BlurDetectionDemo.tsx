@@ -20,9 +20,9 @@ export default function BlurDetectionDemo() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [config, setConfig] = useState<DemoConfig>({
-    method: 'edge',
-    edgeWidthThreshold: 0.5,
-    laplacianThreshold: 100,
+    method: 'both',
+    edgeWidthThreshold: 0.3,
+    laplacianThreshold: 150,
     debug: true
   })
   const [showConfig, setShowConfig] = useState(false)
