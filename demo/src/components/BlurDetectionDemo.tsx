@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { BlurryCheck } from '../lib/index.esm.js'
 import type { BlurAnalysisResult, PDFAnalysisResult } from '../lib/types'
-import { Upload, FileImage, FileText, CheckCircle, XCircle, BarChart3, Settings, Loader2 } from 'lucide-react'
+import { Upload, FileImage, FileText, CheckCircle, XCircle, BarChart3, Settings, Loader2, Eye } from 'lucide-react'
 
 type AnalysisResult = BlurAnalysisResult | PDFAnalysisResult
 
@@ -27,8 +27,36 @@ export default function BlurDetectionDemo() {
   })
   const [showConfig, setShowConfig] = useState(false)
   const [analysisHistory, setAnalysisHistory] = useState<Array<{ file: string, result: AnalysisResult, timestamp: number }>>([])
+  const [visitCount, setVisitCount] = useState<number>(0)
+  const [isLoadingVisits, setIsLoadingVisits] = useState(true)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Track visits on component mount
+  useEffect(() => {
+    const trackVisit = async () => {
+      try {
+        setIsLoadingVisits(true)
+        const response = await fetch('/api/visits', { method: 'POST' })
+        if (response.ok) {
+          const data = await response.json()
+          setVisitCount(data.count)
+        }
+      } catch (error) {
+        console.error('Failed to track visit:', error)
+        // Fallback to localStorage for individual tracking
+        const stored = localStorage.getItem('blurry-check-demo-visits')
+        const currentCount = stored ? parseInt(stored, 10) : 0
+        const newCount = currentCount + 1
+        localStorage.setItem('blurry-check-demo-visits', newCount.toString())
+        setVisitCount(newCount)
+      } finally {
+        setIsLoadingVisits(false)
+      }
+    }
+
+    trackVisit()
+  }, [])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -412,7 +440,17 @@ export default function BlurDetectionDemo() {
       </div>
 
       {/* Footer */}
-      <div className="text-center py-8 border-t border-gray-200">
+      <div className="w-full text-center py-8 space-y-2">
+        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+          <Eye className="w-4 h-4" />
+          {isLoadingVisits ? (
+            <span>Loading visits...</span>
+          ) : (
+            <span>
+              {visitCount.toLocaleString()} {visitCount === 1 ? 'visit' : 'visits'} to this demo
+            </span>
+          )}
+        </div>
         <p className="text-sm text-gray-500">
           Maintained by <a href="https://idenva.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-medium">Idenva.com</a>
         </p>
