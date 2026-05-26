@@ -19,6 +19,9 @@
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "typecheck": "tsc --noEmit",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
     "prepublishOnly": "npm run build && npm run test",
     "clean": "rimraf lib"
   },
@@ -54,6 +57,7 @@
   },
   "homepage": "https://idenva.com",
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.4.4",
