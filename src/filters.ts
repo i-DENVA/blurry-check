@@ -39,7 +39,10 @@ export const Filters = {
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const dstOff = (y * w + x) * 4;
-        let r = 0, g = 0, b = 0, a = 0;
+        let r = 0,
+          g = 0,
+          b = 0,
+          a = 0;
         for (let cy = 0; cy < side; cy++) {
           for (let cx = 0; cx < side; cx++) {
             const scy = Math.min(sh - 1, Math.max(0, y + cy - halfSide));

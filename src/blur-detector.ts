@@ -45,14 +45,18 @@ export class BlurDetector {
   private detectBlur(pixels: Uint8ClampedArray[]) {
     const width = pixels[0].length;
     const height = pixels.length;
-    let numEdges = 0, sumEdgeWidths = 0;
+    let numEdges = 0,
+      sumEdgeWidths = 0;
     for (let y = 0; y < height; y++) {
       let edgeStart = -1;
       for (let x = 0; x < width; x++) {
         const val = pixels[y][x];
         if (edgeStart >= 0 && x > edgeStart) {
           if (val < pixels[y][x - 1]) {
-            if (pixels[y][x - 1] >= 20) { numEdges++; sumEdgeWidths += x - edgeStart - 1; }
+            if (pixels[y][x - 1] >= 20) {
+              numEdges++;
+              sumEdgeWidths += x - edgeStart - 1;
+            }
             edgeStart = -1;
           }
         }
@@ -68,17 +72,26 @@ export class BlurDetector {
     this.log('Starting blur analysis, method:', this.config.method);
     const imageData = await getImageDataFromInput(input, this.config.canvas);
 
-    const result: BlurAnalysisResult = { isBlurry: false, confidence: 0, metrics: {}, method: this.config.method };
+    const result: BlurAnalysisResult = {
+      isBlurry: false,
+      confidence: 0,
+      metrics: {},
+      method: this.config.method,
+    };
 
     try {
       if (this.config.method === 'edge' || this.config.method === 'both') {
         const edge = this.detectBlur(this.reducedPixels(this.detectEdges(imageData)));
         result.metrics.edgeAnalysis = edge;
         const edgeBlurry = edge.avgEdgeWidthPerc > this.config.edgeWidthThreshold;
-        const lowEdge = edge.numEdges < (imageData.width * imageData.height) / LOW_EDGE_COUNT_DIVISOR;
+        const lowEdge =
+          edge.numEdges < (imageData.width * imageData.height) / LOW_EDGE_COUNT_DIVISOR;
         const combined = edgeBlurry || lowEdge;
         this.log('Edge result:', edge, 'blurry:', combined);
-        if (this.config.method === 'edge') { result.isBlurry = combined; result.confidence = Math.min(edge.avgEdgeWidthPerc / this.config.edgeWidthThreshold, 1); }
+        if (this.config.method === 'edge') {
+          result.isBlurry = combined;
+          result.confidence = Math.min(edge.avgEdgeWidthPerc / this.config.edgeWidthThreshold, 1);
+        }
       }
 
       if (this.config.method === 'laplacian' || this.config.method === 'both') {
@@ -87,7 +100,10 @@ export class BlurDetector {
           result.metrics.laplacianVariance = lapVar;
           const lapBlurry = lapVar < this.config.laplacianThreshold;
           this.log('Laplacian:', lapVar, 'blurry:', lapBlurry);
-          if (this.config.method === 'laplacian') { result.isBlurry = lapBlurry; result.confidence = Math.min(this.config.laplacianThreshold / lapVar, 1); }
+          if (this.config.method === 'laplacian') {
+            result.isBlurry = lapBlurry;
+            result.confidence = Math.min(this.config.laplacianThreshold / lapVar, 1);
+          }
         } catch (e) {
           this.log('OpenCV failed, fallback to edge:', e);
           if (this.config.method === 'laplacian') {
@@ -102,13 +118,20 @@ export class BlurDetector {
 
       if (this.config.method === 'both') {
         const e = result.metrics.edgeAnalysis;
-        const edgeBlur = e ? e.avgEdgeWidthPerc > this.config.edgeWidthThreshold || e.numEdges < (imageData.width * imageData.height) / LOW_EDGE_COUNT_DIVISOR : false;
+        const edgeBlur = e
+          ? e.avgEdgeWidthPerc > this.config.edgeWidthThreshold ||
+            e.numEdges < (imageData.width * imageData.height) / LOW_EDGE_COUNT_DIVISOR
+          : false;
         const hasLaplacian = typeof result.metrics.laplacianVariance === 'number';
-        const lapBlur = hasLaplacian ? result.metrics.laplacianVariance! < this.config.laplacianThreshold : false;
+        const lapBlur = hasLaplacian
+          ? result.metrics.laplacianVariance! < this.config.laplacianThreshold
+          : false;
         result.isBlurry = hasLaplacian ? lapBlur : edgeBlur;
         result.confidence = Math.max(
           e ? Math.min(e.avgEdgeWidthPerc / this.config.edgeWidthThreshold, 1) : 0,
-          result.metrics.laplacianVariance ? Math.min(this.config.laplacianThreshold / result.metrics.laplacianVariance, 1) : 0,
+          result.metrics.laplacianVariance
+            ? Math.min(this.config.laplacianThreshold / result.metrics.laplacianVariance, 1)
+            : 0,
         );
       }
 
@@ -116,7 +139,9 @@ export class BlurDetector {
       return result;
     } catch (error) {
       this.log('Analysis failed:', error);
-      throw new Error(`Blur analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Blur analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -132,10 +157,11 @@ export class BlurDetector {
     cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY, 0);
     const laplacian = new cv.Mat();
     cv.Laplacian(gray, laplacian, cv.CV_64F);
-    const mean = new cv.Mat(), stddev = new cv.Mat();
+    const mean = new cv.Mat(),
+      stddev = new cv.Mat();
     cv.meanStdDev(laplacian, mean, stddev);
     const variance = stddev.data64F[0] ** 2;
-    [mat, gray, laplacian, mean, stddev].forEach(m => m.delete());
+    [mat, gray, laplacian, mean, stddev].forEach((m) => m.delete());
     return variance;
   }
 }

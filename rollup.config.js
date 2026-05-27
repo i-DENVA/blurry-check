@@ -12,22 +12,22 @@ export default [
     output: {
       file: 'lib/index.esm.js',
       format: 'es',
-      sourcemap: true
+      sourcemap: true,
     },
     plugins: [
       resolve({
         browser: true,
-        preferBuiltins: false
+        preferBuiltins: false,
       }),
       commonjs(),
       typescript({
         tsconfig: './tsconfig.json',
         declaration: true,
         declarationDir: './lib',
-        rootDir: './src'
+        rootDir: './src',
       }),
-      production && terser()
-    ]
+      production && terser(),
+    ],
   },
   // CommonJS build
   {
@@ -36,20 +36,20 @@ export default [
       file: 'lib/index.js',
       format: 'cjs',
       sourcemap: true,
-      exports: 'named'
+      exports: 'named',
     },
     plugins: [
       resolve({
         browser: true,
-        preferBuiltins: false
+        preferBuiltins: false,
       }),
       commonjs(),
       typescript({
         tsconfig: './tsconfig.json',
-        declaration: false
+        declaration: false,
       }),
-      production && terser()
-    ]
+      production && terser(),
+    ],
   },
   // UMD build for browsers
   {
@@ -58,19 +58,20 @@ export default [
       file: 'lib/index.umd.js',
       format: 'umd',
       name: 'BlurryCheck',
-      sourcemap: true
+      sourcemap: true,
+      exports: 'named',
     },
     plugins: [
       resolve({
         browser: true,
-        preferBuiltins: false
+        preferBuiltins: false,
       }),
       commonjs(),
       typescript({
         tsconfig: './tsconfig.json',
-        declaration: false
+        declaration: false,
       }),
-      production && terser()
-    ]
-  }
+      production && terser(),
+    ],
+  },
 ];

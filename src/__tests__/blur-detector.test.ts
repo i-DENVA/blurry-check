@@ -180,7 +180,7 @@ describe('BlurDetector', () => {
   describe('analyzeImage', () => {
     it('should analyze ImageData input', async () => {
       const result = await detector.analyzeImage(mockImageData as ImageData);
-      
+
       expect(result).toHaveProperty('isBlurry');
       expect(result).toHaveProperty('confidence');
       expect(result).toHaveProperty('method');
@@ -194,7 +194,7 @@ describe('BlurDetector', () => {
       const mockFileReader = {
         onload: null as any,
         onerror: null as any,
-        readAsDataURL: jest.fn(function(this: any) {
+        readAsDataURL: jest.fn(function (this: any) {
           setTimeout(() => {
             this.onload?.({ target: { result: 'data:image/jpeg;base64,test' } });
           }, 0);
@@ -212,10 +212,12 @@ describe('BlurDetector', () => {
 
       (global as any).Image = jest.fn(() => mockImage);
       const resultPromise = detector.analyzeImage(mockFile);
-      setTimeout(() => { mockImage.onload?.() }, 10);
+      setTimeout(() => {
+        mockImage.onload?.();
+      }, 10);
 
       const result = await resultPromise;
-      
+
       expect(result).toHaveProperty('isBlurry');
       expect(result).toHaveProperty('confidence');
       expect(result.method).toBe('edge');
@@ -233,7 +235,7 @@ describe('BlurDetector', () => {
     it('should use edge detection when method is edge', async () => {
       const edgeDetector = new BlurDetector({ method: 'edge' });
       const result = await edgeDetector.analyzeImage(mockImageData as ImageData);
-      
+
       expect(result.method).toBe('edge');
       expect(result.metrics.edgeAnalysis).toBeDefined();
       expect(result.metrics.laplacianVariance).toBeUndefined();
@@ -243,9 +245,10 @@ describe('BlurDetector', () => {
   describe('error handling', () => {
     it('should handle unsupported input types', async () => {
       const unsupportedInput = { invalid: 'input' } as any;
-      
-      await expect(detector.analyzeImage(unsupportedInput))
-        .rejects.toThrow('Unsupported input type');
+
+      await expect(detector.analyzeImage(unsupportedInput)).rejects.toThrow(
+        'Unsupported input type',
+      );
     });
 
     it('should handle canvas context errors', async () => {
@@ -258,8 +261,9 @@ describe('BlurDetector', () => {
       const failingDetector = new BlurDetector({
         canvas: failingCanvas as any,
       });
-      await expect(failingDetector.analyzeImage(mockFile))
-        .rejects.toThrow('Could not get 2D context from canvas');
+      await expect(failingDetector.analyzeImage(mockFile)).rejects.toThrow(
+        'Could not get 2D context from canvas',
+      );
     });
   });
 
@@ -277,9 +281,9 @@ describe('BlurDetector', () => {
     it('should respect debug setting', async () => {
       const debugDetector = new BlurDetector({ debug: true });
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
-      
+
       await debugDetector.analyzeImage(mockImageData as ImageData);
-      
+
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
     });

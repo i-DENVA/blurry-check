@@ -3,17 +3,22 @@ import type { IssueCode } from '../issue-catalog';
 import { clamp } from '../utils';
 
 const DEFAULT_ALLOWED_TYPES = [
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/bmp',
+  'application/pdf',
 ];
 const DEFAULT_ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'pdf'];
 
 const SIGNATURES: Array<{ type: string; extensions: string[]; bytes: number[] }> = [
   { type: 'image/jpeg', extensions: ['jpg', 'jpeg'], bytes: [0xff, 0xd8, 0xff] },
-  { type: 'image/png',  extensions: ['png'],       bytes: [0x89, 0x50, 0x4e, 0x47] },
-  { type: 'image/gif',  extensions: ['gif'],       bytes: [0x47, 0x49, 0x46] },
-  { type: 'application/pdf', extensions: ['pdf'],  bytes: [0x25, 0x50, 0x44, 0x46] },
-  { type: 'image/bmp',  extensions: ['bmp'],       bytes: [0x42, 0x4d] },
-  { type: 'image/webp', extensions: ['webp'],      bytes: [0x52, 0x49, 0x46, 0x46] },
+  { type: 'image/png', extensions: ['png'], bytes: [0x89, 0x50, 0x4e, 0x47] },
+  { type: 'image/gif', extensions: ['gif'], bytes: [0x47, 0x49, 0x46] },
+  { type: 'application/pdf', extensions: ['pdf'], bytes: [0x25, 0x50, 0x44, 0x46] },
+  { type: 'image/bmp', extensions: ['bmp'], bytes: [0x42, 0x4d] },
+  { type: 'image/webp', extensions: ['webp'], bytes: [0x52, 0x49, 0x46, 0x46] },
 ];
 
 export function extensionFor(file: File): string {
@@ -48,7 +53,11 @@ export async function validateFile(
   const issues: IssueCode[] = [];
 
   const extra: Record<string, unknown> = {
-    name: file.name, size: file.size, mimeType: file.type, extension: ext, maxSizeBytes,
+    name: file.name,
+    size: file.size,
+    mimeType: file.type,
+    extension: ext,
+    maxSizeBytes,
   };
 
   if (file.size <= 0) issues.push('invalid_file');
@@ -63,7 +72,10 @@ export async function validateFile(
     extra.detectedSignature = signature;
     if (!signature) {
       issues.push('invalid_file');
-    } else if (!allowedTypes.includes(signature.type) && !allowedExtensions.includes(signature.extension)) {
+    } else if (
+      !allowedTypes.includes(signature.type) &&
+      !allowedExtensions.includes(signature.extension)
+    ) {
       issues.push('unsupported_format');
     }
   }
