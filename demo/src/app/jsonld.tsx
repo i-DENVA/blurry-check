@@ -32,12 +32,12 @@ export default function JsonLd() {
       'File format and magic-byte validation',
       'Dark mode support',
     ],
-  }
+  };
 
   return (
     <script
       type="application/ld+json"
       dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
     />
-  )
+  );
 }

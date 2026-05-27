@@ -1,16 +1,16 @@
-'use client'
+'use client';
 
-import { useState, useCallback } from 'react'
-import { Copy, Check } from 'lucide-react'
+import { useState, useCallback } from 'react';
+import { Copy, Check } from 'lucide-react';
 
 export function CodeBlock({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }, [code])
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code]);
 
   return (
     <div className="code-window my-4">
@@ -28,5 +28,5 @@ export function CodeBlock({ code }: { code: string }) {
         {code}
       </pre>
     </div>
-  )
+  );
 }

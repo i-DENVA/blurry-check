@@ -9,7 +9,7 @@ module.exports = {
   theme: {
     extend: {
       boxShadow: {
-        'skeuo': '4px 4px 0px 0px #000',
+        skeuo: '4px 4px 0px 0px #000',
         'skeuo-sm': '2px 2px 0px 0px #000',
         'skeuo-lg': '6px 6px 0px 0px #000',
         'skeuo-xl': '8px 8px 0px 0px #000',
@@ -22,8 +22,8 @@ module.exports = {
         'skeuo-dark-btn': '2px 2px 0px 0px rgba(255,255,255,0.9)',
       },
       borderWidth: {
-        '3': '3px',
-        '4': '4px',
+        3: '3px',
+        4: '4px',
       },
       fontFamily: {
         mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
@@ -31,4 +31,4 @@ module.exports = {
     },
   },
   plugins: [],
-}
+};

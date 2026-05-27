@@ -1,13 +1,20 @@
-'use client'
+'use client';
 
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react';
 
-const BADGES = ['Edge Detection', 'OpenCV Laplacian', 'Multi-page PDF', 'Pre-upload Checks', 'TypeScript', 'Framework Agnostic']
+const BADGES = [
+  'Edge Detection',
+  'OpenCV Laplacian',
+  'Multi-page PDF',
+  'Pre-upload Checks',
+  'TypeScript',
+  'Framework Agnostic',
+];
 
 export default function HeroShowcase() {
   const scrollToDemo = () => {
-    document.getElementById('workbench')?.scrollIntoView({ behavior: 'smooth' })
-  }
+    document.getElementById('workbench')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-12 sm:pt-24 sm:pb-16">
@@ -40,16 +47,22 @@ export default function HeroShowcase() {
 
         <ul className="flex flex-wrap justify-center gap-2 pt-2" aria-label="Key features">
           {BADGES.map((badge) => (
-            <li key={badge}><span className="badge">{badge}</span></li>
+            <li key={badge}>
+              <span className="badge">{badge}</span>
+            </li>
           ))}
         </ul>
 
         <div className="pt-4">
-          <button onClick={scrollToDemo} className="btn-primary text-base px-8 py-3" aria-label="Scroll to interactive demo">
+          <button
+            onClick={scrollToDemo}
+            className="btn-primary text-base px-8 py-3"
+            aria-label="Scroll to interactive demo"
+          >
             Try the Demo <ArrowRight className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
