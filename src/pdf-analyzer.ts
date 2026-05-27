@@ -191,7 +191,8 @@ export class PDFAnalyzer {
       const check = setInterval(() => {
         if (!this.loading) {
           clearInterval(check);
-          this.pdfLib ? resolve() : reject(new Error('PDF.js failed to load'));
+          if (this.pdfLib) resolve();
+          else reject(new Error('PDF.js failed to load'));
         }
       }, 100);
       setTimeout(() => {

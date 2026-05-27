@@ -77,7 +77,8 @@ export class OpenCVLoader {
       const check = setInterval(() => {
         if (!this.loading) {
           clearInterval(check);
-          this.loaded && window.cv ? resolve() : reject(new Error('OpenCV failed to load'));
+          if (this.loaded && window.cv) resolve();
+          else reject(new Error('OpenCV failed to load'));
         }
       }, 100);
       setTimeout(() => {
