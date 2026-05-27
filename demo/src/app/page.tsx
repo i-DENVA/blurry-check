@@ -1,6 +1,6 @@
-import HeroShowcase from '@/components/HeroShowcase'
-import FeatureGrid from '@/components/FeatureGrid'
-import UploadWorkbench from '@/components/UploadWorkbench'
+import HeroShowcase from '@/components/HeroShowcase';
+import FeatureGrid from '@/components/FeatureGrid';
+import UploadWorkbench from '@/components/UploadWorkbench';
 
 export default function Home() {
   return (
@@ -19,7 +19,10 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-center space-y-2 border-t-[3px] border-[var(--color-border)]" role="contentinfo">
+      <footer
+        className="max-w-6xl mx-auto px-4 sm:px-6 py-8 text-center space-y-2 border-t-[3px] border-[var(--color-border)]"
+        role="contentinfo"
+      >
         <p className="text-sm text-[var(--color-muted)]">
           Maintained by{' '}
           <a
@@ -39,13 +42,13 @@ export default function Home() {
             className="font-medium hover:underline"
           >
             GitHub
-          </a>
-          {' '}&middot;{' '}
+          </a>{' '}
+          &middot;{' '}
           <a href="/docs" className="font-medium hover:underline">
             Documentation
           </a>
         </p>
       </footer>
     </>
-  )
+  );
 }

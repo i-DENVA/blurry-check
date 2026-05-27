@@ -1,5 +1,5 @@
-import DocsContent from '@/components/DocsContent'
+import DocsContent from '@/components/DocsContent';
 
 export default function DocsPage() {
-  return <DocsContent />
+  return <DocsContent />;
 }

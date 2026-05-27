@@ -1,10 +1,10 @@
-import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import Navbar from '@/components/Navbar'
-import JsonLd from './jsonld'
+import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import Navbar from '@/components/Navbar';
+import JsonLd from './jsonld';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -13,7 +13,7 @@ export const viewport: Viewport = {
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
   ],
-}
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://blurry-check-demo.vercel.app'),
@@ -89,13 +89,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://blurry-check-demo.vercel.app',
   },
-}
+};
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <head>
@@ -115,5 +111,5 @@ export default function RootLayout({
         {children}
       </body>
     </html>
-  )
+  );
 }

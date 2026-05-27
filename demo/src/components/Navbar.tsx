@@ -1,18 +1,18 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { Menu, X, Github } from 'lucide-react'
-import ThemeToggle from './ThemeToggle'
+import { useState } from 'react';
+import Link from 'next/link';
+import { Menu, X, Github } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
 
 const NAV_LINKS = [
   { label: 'Demo', href: '#workbench' },
   { label: 'Docs', href: '/docs' },
   { label: 'GitHub', href: 'https://github.com/i-DENVA/blurry-check', external: true },
-]
+];
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
 
   return (
     <nav className="sticky top-0 z-50 bg-[var(--color-bg)] border-b-[3px] border-[var(--color-border)]">
@@ -43,7 +43,7 @@ export default function Navbar() {
                 >
                   {link.label}
                 </Link>
-              )
+              ),
             )}
             <div className="ml-2">
               <ThemeToggle />
@@ -88,11 +88,11 @@ export default function Navbar() {
                 >
                   {link.label}
                 </Link>
-              )
+              ),
             )}
           </div>
         </div>
       )}
     </nav>
-  )
+  );
 }

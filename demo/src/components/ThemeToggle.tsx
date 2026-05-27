@@ -1,31 +1,31 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { Sun, Moon } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { Sun, Moon } from 'lucide-react';
 
 export default function ThemeToggle() {
   const [dark, setDark] = useState(() => {
-    if (typeof document === 'undefined') return false
-    return document.documentElement.classList.contains('dark')
-  })
-  const [mounted, setMounted] = useState(false)
+    if (typeof document === 'undefined') return false;
+    return document.documentElement.classList.contains('dark');
+  });
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
-    if (!mounted) return
-    localStorage.setItem('blurry-check-theme', dark ? 'dark' : 'light')
+    if (!mounted) return;
+    localStorage.setItem('blurry-check-theme', dark ? 'dark' : 'light');
     if (dark) {
-      document.documentElement.classList.add('dark')
+      document.documentElement.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark')
+      document.documentElement.classList.remove('dark');
     }
-  }, [dark, mounted])
+  }, [dark, mounted]);
 
   if (!mounted) {
-    return <div className="w-8 h-8" suppressHydrationWarning />
+    return <div className="w-8 h-8" suppressHydrationWarning />;
   }
 
   return (
@@ -37,5 +37,5 @@ export default function ThemeToggle() {
     >
       {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
     </button>
-  )
+  );
 }
