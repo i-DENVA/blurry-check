@@ -18,7 +18,12 @@ export async function getImageDataFromInput(
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
-        img.onload = () => { c.width = img.width; c.height = img.height; ctx.drawImage(img, 0, 0); resolve(ctx.getImageData(0, 0, c.width, c.height)); };
+        img.onload = () => {
+          c.width = img.width;
+          c.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          resolve(ctx.getImageData(0, 0, c.width, c.height));
+        };
         img.onerror = reject;
         img.src = e.target?.result as string;
       };
@@ -28,7 +33,8 @@ export async function getImageDataFromInput(
   }
 
   if (input instanceof HTMLImageElement) {
-    c.width = input.naturalWidth || input.width; c.height = input.naturalHeight || input.height;
+    c.width = input.naturalWidth || input.width;
+    c.height = input.naturalHeight || input.height;
     ctx.drawImage(input, 0, 0);
     return ctx.getImageData(0, 0, c.width, c.height);
   }

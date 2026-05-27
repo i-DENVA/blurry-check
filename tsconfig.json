@@ -3,10 +3,8 @@
     "target": "ES2018",
     "lib": ["ES2018", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "node",
-    "ignoreDeprecations": "6.0",
+    "moduleResolution": "bundler",
     "declaration": true,
-    "declarationMap": true,
     "outDir": "./lib",
     "rootDir": "./src",
     "strict": true,
@@ -18,14 +16,6 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "lib",
-    "demo",
-    "**/*.test.ts",
-    "**/*.spec.ts"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "lib", "demo", "**/*.test.ts", "**/*.spec.ts"]
 }
