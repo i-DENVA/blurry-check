@@ -1,6 +1,7 @@
 import HeroShowcase from '@/components/HeroShowcase';
 import FeatureGrid from '@/components/FeatureGrid';
 import UploadWorkbench from '@/components/UploadWorkbench';
+import Link from 'next/link';
 
 export default function Home() {
   return (
@@ -44,9 +45,9 @@ export default function Home() {
             GitHub
           </a>{' '}
           &middot;{' '}
-          <a href="/docs" className="font-medium hover:underline">
+          <Link href="/docs" className="font-medium hover:underline">
             Documentation
-          </a>
+          </Link>
         </p>
       </footer>
     </>

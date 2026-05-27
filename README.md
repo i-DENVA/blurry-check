@@ -2,7 +2,7 @@
 
 Browser-side upload quality validation for images and PDFs. Files never leave the device — all analysis runs client-side.
 
-**[Try the Live Demo →](https://blurry-check-demo.vercel.app/)**
+**[Try the Live Demo →](https://i-denva.github.io/blurry-check/)**
 
 ## Features
 
