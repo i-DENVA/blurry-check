@@ -1,13 +1,130 @@
 import { BlurDetector } from '../blur-detector';
+import { BlurryCheck, validateImage } from '../index';
 import { BlurDetectionConfig } from '../types';
+import { BLANK_NON_WHITE_RATIO_MAX, BLANK_CONTRAST_MAX } from '../constants';
 
-// Mock canvas and image data
 const mockImageData = new ImageData(100, 100);
-// Fill with gray data
 mockImageData.data.fill(128);
+
+function createSharpDocumentImageData(): ImageData {
+  const width = 800;
+  const height = 600;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 255;
+    data[i + 1] = 255;
+    data[i + 2] = 255;
+    data[i + 3] = 255;
+  }
+
+  for (let y = 80; y < 520; y += 40) {
+    for (let x = 90; x < 710; x++) {
+      for (let thickness = 0; thickness < 3; thickness++) {
+        const index = ((y + thickness) * width + x) * 4;
+        data[index] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+      }
+    }
+  }
+
+  return new ImageData(data, width, height);
+}
+
+function createDimDocumentImageData(): ImageData {
+  const width = 800;
+  const height = 600;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 102;
+    data[i + 1] = 102;
+    data[i + 2] = 102;
+    data[i + 3] = 255;
+  }
+
+  for (let y = 80; y < 520; y += 40) {
+    for (let x = 90; x < 710; x++) {
+      for (let thickness = 0; thickness < 3; thickness++) {
+        const index = ((y + thickness) * width + x) * 4;
+        data[index] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+      }
+    }
+  }
+
+  return new ImageData(data, width, height);
+}
+
+function createLowContrastDocumentImageData(): ImageData {
+  const width = 800;
+  const height = 600;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 220;
+    data[i + 1] = 220;
+    data[i + 2] = 220;
+    data[i + 3] = 255;
+  }
+
+  for (let y = 80; y < 520; y += 40) {
+    for (let x = 90; x < 710; x++) {
+      for (let thickness = 0; thickness < 3; thickness++) {
+        const index = ((y + thickness) * width + x) * 4;
+        data[index] = 185;
+        data[index + 1] = 185;
+        data[index + 2] = 185;
+      }
+    }
+  }
+
+  return new ImageData(data, width, height);
+}
+
+function createGlareDocumentImageData(): ImageData {
+  const width = 800;
+  const height = 600;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = 35;
+    data[i + 1] = 35;
+    data[i + 2] = 35;
+    data[i + 3] = 255;
+  }
+
+  for (let y = 80; y < 520; y += 40) {
+    for (let x = 90; x < 710; x++) {
+      for (let thickness = 0; thickness < 3; thickness++) {
+        const index = ((y + thickness) * width + x) * 4;
+        data[index] = 0;
+        data[index + 1] = 0;
+        data[index + 2] = 0;
+      }
+    }
+  }
+
+  for (let y = 0; y < 350; y++) {
+    for (let x = 0; x < 350; x++) {
+      const dx = x - 175;
+      const dy = y - 175;
+      if (dx * dx + dy * dy > 175 * 175) continue;
+      const index = (y * width + x) * 4;
+      data[index] = 255;
+      data[index + 1] = 255;
+      data[index + 2] = 255;
+    }
+  }
+
+  return new ImageData(data, width, height);
+}
 
 const mockCanvas = {
   getContext: jest.fn(() => ({
+    createImageData: jest.fn((width: number, height: number) => new ImageData(width, height)),
     getImageData: jest.fn(() => mockImageData),
     drawImage: jest.fn(),
   })),
@@ -21,10 +138,7 @@ describe('BlurDetector', () => {
   let detector: BlurDetector;
 
   beforeEach(() => {
-    // Reset mocks
     jest.clearAllMocks();
-    
-    // Mock document.createElement for canvas
     (global as any).document = {
       createElement: jest.fn((tagName: string) => {
         if (tagName === 'canvas') {
@@ -77,7 +191,6 @@ describe('BlurDetector', () => {
     });
 
     it('should handle File input', async () => {
-      // Mock FileReader
       const mockFileReader = {
         onload: null as any,
         onerror: null as any,
@@ -89,8 +202,6 @@ describe('BlurDetector', () => {
       };
 
       (global as any).FileReader = jest.fn(() => mockFileReader);
-
-      // Mock Image
       const mockImage = {
         onload: null as any,
         onerror: null as any,
@@ -100,13 +211,8 @@ describe('BlurDetector', () => {
       };
 
       (global as any).Image = jest.fn(() => mockImage);
-
       const resultPromise = detector.analyzeImage(mockFile);
-      
-      // Simulate image load
-      setTimeout(() => {
-        mockImage.onload?.();
-      }, 10);
+      setTimeout(() => { mockImage.onload?.() }, 10);
 
       const result = await resultPromise;
       
@@ -143,7 +249,6 @@ describe('BlurDetector', () => {
     });
 
     it('should handle canvas context errors', async () => {
-      // Mock canvas that fails to get context
       const failingCanvas = {
         getContext: jest.fn(() => null),
         width: 100,
@@ -153,8 +258,6 @@ describe('BlurDetector', () => {
       const failingDetector = new BlurDetector({
         canvas: failingCanvas as any,
       });
-
-      // Use a File input to trigger canvas context usage
       await expect(failingDetector.analyzeImage(mockFile))
         .rejects.toThrow('Could not get 2D context from canvas');
     });
@@ -172,17 +275,225 @@ describe('BlurDetector', () => {
     });
 
     it('should respect debug setting', async () => {
-      const debugDetector = new BlurDetector({
-        debug: true,
-      });
-
-      // Mock console.log to verify debug output
+      const debugDetector = new BlurDetector({ debug: true });
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       
       await debugDetector.analyzeImage(mockImageData as ImageData);
       
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe('upload validation', () => {
+    it('should return friendly validation output for ImageData', async () => {
+      const result = await validateImage(mockImageData as ImageData, {
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast', 'blur'],
+        minWidth: 50,
+        minHeight: 50,
+      });
+
+      expect(result).toHaveProperty('ok');
+      expect(result).toHaveProperty('valid');
+      expect(result).toHaveProperty('score');
+      expect(result).toHaveProperty('message');
+      expect(result).toHaveProperty('checks');
+      expect(result.type).toBe('image');
+      expect(result.valid).toBe(result.ok);
+      expect(result.width).toBe(100);
+      expect(result.height).toBe(100);
+      expect(result.checks.blur).toBeDefined();
+      expect(result.recommendations.length).toBeGreaterThan(0);
+    });
+
+    it('should expose validation through the BlurryCheck class', async () => {
+      const checker = new BlurryCheck({ method: 'edge' });
+      const result = await checker.validateImage(mockImageData as ImageData, {
+        checks: ['resolution', 'brightness'],
+        minWidth: 50,
+        minHeight: 50,
+      });
+
+      expect(typeof result.ok).toBe('boolean');
+      expect(typeof result.score).toBe('number');
+      expect(result.checks.resolution?.ok).toBe(true);
+    });
+
+    it('should pass bright but readable document-style images in general mode', async () => {
+      const result = await validateImage(createSharpDocumentImageData(), {
+        mode: 'general',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast'],
+        minWidth: 600,
+        minHeight: 600,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(result.issues).toEqual([]);
+      expect(result.checks.brightness?.ok).toBe(true);
+      expect(result.checks.contrast?.ok).toBe(true);
+      expect(result.debugMetrics?.mode).toBe('general');
+    });
+
+    it('should let strong Laplacian sharpness rescue edge-width false positives in both mode', async () => {
+      const laplacianSpy = jest
+        .spyOn(BlurDetector.prototype as any, 'detectBlurOpenCV')
+        .mockResolvedValue(339.46327083333335);
+
+      const result = await validateImage(createSharpDocumentImageData(), {
+        mode: 'general',
+        method: 'both',
+        edgeWidthThreshold: 0.2,
+        checks: ['resolution', 'brightness', 'contrast', 'blur'],
+        minWidth: 600,
+        minHeight: 600,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(result.issues).not.toContain('blurry');
+      expect(result.checks.blur?.ok).toBe(true);
+      expect(result.blurAnalysis?.isBlurry).toBe(false);
+      expect(result.blurAnalysis?.metrics.edgeAnalysis?.avgEdgeWidthPerc).toBeGreaterThan(0.2);
+      expect(result.blurAnalysis?.metrics.laplacianVariance).toBe(339.46327083333335);
+
+      laplacianSpy.mockRestore();
+    });
+
+    it('should flag dim document-style images as too dark in general mode', async () => {
+      const result = await validateImage(createDimDocumentImageData(), {
+        mode: 'general',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast'],
+        minWidth: 600,
+        minHeight: 600,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.issues).toContain('too_dark');
+      expect(result.checks.brightness?.ok).toBe(false);
+      expect(result.checks.brightness?.message).toBe('Document appears underexposed.');
+      expect(result.debugMetrics?.resolvedThresholds).toMatchObject({
+        brightness: {
+          documentMaxLuminanceMin: 150,
+          documentContentBrightnessMin: 115,
+        },
+      });
+    });
+
+    it('should flag weak gray-on-gray document content as low contrast in general mode', async () => {
+      const result = await validateImage(createLowContrastDocumentImageData(), {
+        mode: 'general',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast'],
+        minWidth: 600,
+        minHeight: 600,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.issues).toContain('low_contrast');
+      expect(result.checks.brightness?.ok).toBe(true);
+      expect(result.checks.contrast?.ok).toBe(false);
+      expect(result.debugMetrics?.resolvedThresholds).toMatchObject({
+        contrast: {
+          readableContentMinContrast: 35,
+          contrastReadableContentMinContrast: 35,
+        },
+      });
+    });
+
+    it('should not treat bright low-contrast document content as overexposed', async () => {
+      const result = await validateImage(createLowContrastDocumentImageData(), {
+        mode: 'general',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast'],
+        minWidth: 600,
+        minHeight: 600,
+      });
+
+      expect(result.issues).not.toContain('too_bright');
+      expect(result.issues).toContain('low_contrast');
+      expect(result.checks.brightness?.ok).toBe(true);
+      expect(result.checks.contrast?.ok).toBe(false);
+      expect(result.debugMetrics?.resolvedThresholds).toMatchObject({
+        brightness: {
+          brightnessReadableContentMinContrast: 18,
+        },
+        contrast: {
+          contrastReadableContentMinContrast: 35,
+        },
+      });
+    });
+
+    it('should flag document glare from large saturated highlights', async () => {
+      const result = await validateImage(createGlareDocumentImageData(), {
+        mode: 'general',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast'],
+        minWidth: 600,
+        minHeight: 600,
+      });
+
+      expect(result.ok).toBe(false);
+      expect(result.issues).toContain('glare');
+      expect(result.checks.brightness?.ok).toBe(false);
+      expect(result.checks.brightness?.message).toBe('Document has glare or blown highlights.');
+      expect(result.debugMetrics?.resolvedThresholds).toMatchObject({
+        brightness: {
+          glarePixelRatioThreshold: 0.08,
+          glareLuminanceThreshold: 250,
+        },
+      });
+    });
+
+    it('flags a white/empty image as blank_image in document mode', async () => {
+      const blank = new ImageData(600, 400);
+      blank.data.fill(255);
+      const result = await validateImage(blank, {
+        mode: 'document',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast', 'blur'],
+        minWidth: 800,
+        minHeight: 600,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.issues).toContain('blank_image');
+      expect(result.issues).not.toContain('too_bright');
+      expect(result.issues).not.toContain('low_contrast');
+      expect(result.issues).not.toContain('blurry');
+      expect(result.debugMetrics?.blank?.detected).toBe(true);
+      expect(result.debugMetrics?.blank?.blankNonWhiteRatioMax).toBe(BLANK_NON_WHITE_RATIO_MAX);
+      expect(result.debugMetrics?.blank?.blankContrastMax).toBe(BLANK_CONTRAST_MAX);
+    });
+
+    it('reports low_resolution even when blank_image is present', async () => {
+      const blank = new ImageData(600, 400);
+      blank.data.fill(255);
+      const result = await validateImage(blank, {
+        mode: 'document',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast', 'blur'],
+        minWidth: 1000,
+        minHeight: 800,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.issues).toContain('blank_image');
+      expect(result.issues).toContain('low_resolution');
+      expect(result.issues).not.toContain('too_bright');
+      expect(result.issues).not.toContain('low_contrast');
+      expect(result.issues).not.toContain('blurry');
+    });
+
+    it('treats bright readable document as valid (not blank)', async () => {
+      const result = await validateImage(createSharpDocumentImageData(), {
+        mode: 'general',
+        method: 'edge',
+        checks: ['resolution', 'brightness', 'contrast', 'blur'],
+        minWidth: 600,
+        minHeight: 600,
+      });
+      expect(result.issues).not.toContain('blank_image');
+      expect(result.debugMetrics?.blank?.detected).toBe(false);
     });
   });
 });

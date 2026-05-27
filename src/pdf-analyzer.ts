@@ -1,20 +1,6 @@
-/**
- * PDF analysis functionality for blur detection
- */
-
+import { clamp } from './utils';
 import { BlurDetector } from './blur-detector';
 import { BlurDetectionConfig, PDFAnalysisResult, BlurAnalysisResult } from './types';
-
-declare global {
-  interface Window {
-    pdfjsLib?: {
-      getDocument: (data: { data: Uint8Array }) => { promise: Promise<any> };
-      GlobalWorkerOptions: {
-        workerSrc: string;
-      };
-    };
-  }
-}
 
 export class PDFAnalyzer {
   private blurDetector: BlurDetector;
@@ -27,492 +13,302 @@ export class PDFAnalyzer {
     this.blurDetector = new BlurDetector(config);
   }
 
-  private log(message: string, ...args: any[]): void {
-    if (this.config.debug) {
-      console.log(`[PDFAnalyzer] ${message}`, ...args);
+  private calculateRenderedPageMetrics(imageData: ImageData, pageNumber: number, rotation: number): NonNullable<BlurAnalysisResult['metrics']['pdfPageMetrics']> {
+    const { data, width, height } = imageData;
+    let sum = 0, sumSquares = 0, contentSum = 0, contentSumSquares = 0, contentCount = 0, glarePixelCount = 0;
+    let minLuminance = 255, maxLuminance = 0, minX = width, minY = height, maxX = -1, maxY = -1;
+    const count = data.length / 4;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        const luminance = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
+        sum += luminance; sumSquares += luminance * luminance;
+        minLuminance = Math.min(minLuminance, luminance);
+        maxLuminance = Math.max(maxLuminance, luminance);
+        if (luminance >= 250) glarePixelCount++;
+        if (luminance < 245) { contentSum += luminance; contentSumSquares += luminance * luminance; contentCount++; minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+      }
     }
+
+    const brightness = sum / count;
+    const variance = sumSquares / count - brightness * brightness;
+    const contrast = Math.sqrt(Math.max(variance, 0));
+    const contentBrightness = contentCount > 0 ? contentSum / contentCount : brightness;
+    const contentVariance = contentCount > 0 ? contentSumSquares / contentCount - contentBrightness * contentBrightness : variance;
+    const contentContrast = Math.sqrt(Math.max(contentVariance, 0));
+    const nonWhiteRatio = contentCount / count;
+    const glarePixelRatio = glarePixelCount / count;
+    const detected = maxX >= minX && maxY >= minY;
+    const marginRatios = detected ? { top: minY / height, right: (width - maxX - 1) / width, bottom: (height - maxY - 1) / height, left: minX / width } : { top: 1, right: 1, bottom: 1, left: 1 };
+    const edgesTouchingBoundary = Object.entries(marginRatios).filter(([, ratio]) => ratio < 0.015).map(([edge]) => edge);
+    const perspectiveScore = this.estimatePerspectiveScore(imageData);
+    const aspectRatio = width / Math.max(height, 1);
+
+    return {
+      pageNumber, width, height, aspectRatio,
+      orientation: aspectRatio > 1.08 ? 'landscape' : aspectRatio < 0.92 ? 'portrait' : 'square',
+      rotation, brightness, contrast, minLuminance, maxLuminance, nonWhiteRatio, contentBrightness, contentContrast, glarePixelRatio,
+      documentFrame: { detected, marginRatios, edgesTouchingBoundary, perspectiveScore, isLikelyCropped: edgesTouchingBoundary.length > 0, hasPerspectiveDistortion: perspectiveScore < 65 },
+    };
   }
 
-  /**
-   * Load PDF.js library dynamically
-   */
+  private estimatePerspectiveScore(imageData: ImageData): number {
+    const { data, width, height } = imageData;
+    const rows: Array<{ left: number; right: number }> = [];
+    const rowStep = Math.max(1, Math.floor(height / 40));
+    const xStep = Math.max(1, Math.floor(width / 400));
+
+    for (let y = 0; y < height; y += rowStep) {
+      let left = -1, right = -1;
+      for (let x = 0; x < width; x += xStep) {
+        const idx = (y * width + x) * 4;
+        const luminance = 0.2126 * data[idx] + 0.7152 * data[idx + 1] + 0.0722 * data[idx + 2];
+        if (luminance < 245) { if (left === -1) left = x; right = x; }
+      }
+      if (left >= 0 && right > left) rows.push({ left, right });
+    }
+
+    if (rows.length < 8) return 100;
+
+    const quarter = Math.floor(rows.length / 4);
+    const topBand = rows.slice(0, Math.max(1, quarter));
+    const bottomBand = rows.slice(rows.length - quarter);
+    const avgWidth = (items: Array<{ left: number; right: number }>) => items.reduce((s, i) => s + i.right - i.left, 0) / Math.max(items.length, 1);
+    const topBottomRatio = Math.min(avgWidth(topBand), avgWidth(bottomBand)) / Math.max(avgWidth(topBand), avgWidth(bottomBand), 1);
+    const avgLeft = (items: Array<{ left: number; right: number }>) => items.reduce((s, i) => s + i.left, 0) / Math.max(items.length, 1);
+    const leftDrift = Math.abs(avgLeft(topBand) - avgLeft(bottomBand)) / Math.max(width, 1);
+    const driftScore = 1 - Math.min(1, leftDrift * 15);
+    return Math.round(clamp((topBottomRatio * 0.7 + driftScore * 0.3) * 100));
+  }
+
+  private log(message: string, ...args: any[]) { if (this.config.debug) console.log(`[PDFAnalyzer] ${message}`, ...args); }
+
   private async loadPdfJS(): Promise<void> {
-    if (typeof window === 'undefined') {
-      throw new Error('PDF.js can only be loaded in browser environments');
-    }
-
-    if (this.pdfLib) {
-      return Promise.resolve();
-    }
-
-    if (this.loading) {
-      return this.waitForLoad();
-    }
+    if (typeof window === 'undefined') throw new Error('PDF.js can only be loaded in browser environments');
+    if (this.pdfLib) return;
+    if (this.loading) return this.waitForLoad();
 
     this.loading = true;
-
     try {
-      // Remove existing script if any
-      const existingScript = document.querySelector('#pdfjs-script');
-      if (existingScript) {
-        document.body.removeChild(existingScript);
-      }
+      document.querySelector('#pdfjs-script')?.remove();
 
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      script.async = true;
-      script.id = 'pdfjs-script';
-
-      const loadPromise = new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        script.async = true; script.id = 'pdfjs-script';
         script.onload = () => {
-          if (window.pdfjsLib) {
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            this.pdfLib = window.pdfjsLib;
-            this.loading = false;
-            resolve();
-          } else {
-            this.loading = false;
-            reject(new Error('PDF.js not available after loading'));
-          }
+          if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; this.pdfLib = window.pdfjsLib; this.loading = false; resolve(); }
+          else { this.loading = false; reject(new Error('PDF.js not available')); }
         };
-        script.onerror = () => {
-          this.loading = false;
-          reject(new Error('Failed to load PDF.js'));
-        };
+        script.onerror = () => { this.loading = false; reject(new Error('Failed to load PDF.js')); };
+        document.body.appendChild(script);
       });
-
-      document.body.appendChild(script);
-      await loadPromise;
-    } catch (error) {
-      this.loading = false;
-      throw error;
-    }
+    } catch (error) { this.loading = false; throw error; }
   }
 
   private async waitForLoad(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const checkInterval = setInterval(() => {
-        if (!this.loading) {
-          clearInterval(checkInterval);
-          if (this.pdfLib) {
-            resolve();
-          } else {
-            reject(new Error('PDF.js failed to load'));
-          }
-        }
-      }, 100);
-
-      // Timeout after 15 seconds
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        reject(new Error('PDF.js loading timeout'));
-      }, 15000);
+      const check = setInterval(() => { if (!this.loading) { clearInterval(check); this.pdfLib ? resolve() : reject(new Error('PDF.js failed to load')); } }, 100);
+      setTimeout(() => { clearInterval(check); reject(new Error('PDF.js loading timeout')); }, 15000);
     });
   }
 
-  /**
-   * Check if a PDF page is blurry by rendering it at multiple scales and analyzing quality
-   */
-  private async checkPdfPageQuality(pdf: any, pageNumber: number): Promise<BlurAnalysisResult> {
+  private async checkPdfPageQuality(pdf: any, pageNumber: number, maxRenderScale = 2.0): Promise<BlurAnalysisResult> {
     const page = await pdf.getPage(pageNumber);
-    
-    // Test at multiple scales to get more accurate results
-    const scales = [1.0, 1.5, 2.0];
+    const candidateScales = [1.0, 1.5, 2.0];
+    const scales = candidateScales.filter((s) => s <= maxRenderScale);
     const results: BlurAnalysisResult[] = [];
-    
+
     for (const scale of scales) {
       const viewport = page.getViewport({ scale });
-      
       const canvas = this.config.canvas || document.createElement('canvas');
       const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('Could not get 2D context from canvas');
-      }
-
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      const renderContext = { canvasContext: context, viewport };
-      await page.render(renderContext).promise;
-
+      if (!context) throw new Error('Could not get 2D context from canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: context, viewport }).promise;
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // Use more sensitive settings for PDFs
-      const pdfBlurDetector = new (await import('./blur-detector')).BlurDetector({
-        ...this.config,
-        edgeWidthThreshold: Math.min(this.config.edgeWidthThreshold || 0.5, 0.25), // More sensitive
-        method: 'edge', // Consistent method
-        debug: this.config.debug
-      });
-      
+      const pdfPageMetrics = this.calculateRenderedPageMetrics(imageData, pageNumber, viewport.rotation ?? page.rotate ?? 0);
+
+      const pdfBlurDetector = new BlurDetector({ ...this.config, edgeWidthThreshold: Math.min(this.config.edgeWidthThreshold || 0.5, 0.25), method: 'edge', debug: this.config.debug });
       const result = await pdfBlurDetector.analyzeImage(imageData);
       result.method = `${result.method} (scale ${scale}x)`;
+      result.metrics.pdfPageMetrics = pdfPageMetrics;
       results.push(result);
-      
       this.log(`Page ${pageNumber} at ${scale}x scale:`, result);
     }
-    
-    // Combine results - if ANY scale shows blur, consider it blurry
-    const blurryCount = results.filter(r => r.isBlurry).length;
-    const avgConfidence = results.reduce((sum, r) => sum + r.confidence, 0) / results.length;
-    
-    // Use the most detailed result (highest scale) as base
+
     const bestResult = results[results.length - 1];
-    
+    const blurryCount = results.filter(r => r.isBlurry).length;
     return {
       ...bestResult,
-      isBlurry: blurryCount > 0, // Any scale showing blur = blurry
-      confidence: Math.max(avgConfidence, blurryCount / results.length),
-      method: `Multi-scale analysis (${blurryCount}/${results.length} scales detected blur)`,
-      metrics: {
-        ...bestResult.metrics,
-        // Add multi-scale information
-        scaleResults: results.map(r => ({
-          scale: parseFloat(r.method.match(/scale ([\d.]+)x/)?.[1] || '1'),
-          isBlurry: r.isBlurry,
-          confidence: r.confidence,
-          edgeAnalysis: r.metrics.edgeAnalysis
-        }))
-      }
+      isBlurry: bestResult.isBlurry,
+      confidence: bestResult.confidence,
+      method: `Highest-scale analysis (${blurryCount}/${results.length} scales detected blur)`,
+      metrics: { ...bestResult.metrics, scaleResults: results.map(r => ({ scale: parseFloat(r.method.match(/scale ([\d.]+)x/)?.[1] || '1'), isBlurry: r.isBlurry, confidence: r.confidence, edgeAnalysis: r.metrics.edgeAnalysis })) },
     };
   }
 
-  /**
-   * Analyze page content to detect if it's likely a header/logo page
-   */
-  private analyzePageContent(textContent: any, pageNumber: number): {
-    isLikelyHeaderPage: boolean;
-    textDensity: number;
-    hasLowTextContent: boolean;
-    isCertificateDocument: boolean;
-  } {
+  private analyzePageContent(textContent: any, pageNumber: number) {
     const textItems = textContent.items || [];
     const totalText = textItems.map((item: any) => item.str).join(' ').trim();
     const textLength = totalText.length;
-    
-    // Page 1 with low text content often contains logos/headers
     const isFirstPage = pageNumber === 1;
-    const hasLowTextContent = textLength < 200; // Less than 200 chars suggests header/logo page
-    const textDensity = textLength / Math.max(textItems.length, 1); // Avg chars per text item
-    
-    // Look for header-like patterns
+    const hasLowTextContent = textLength < 200;
+    const textDensity = textLength / Math.max(textItems.length, 1);
+
     const hasHeaderKeywords = /bill|statement|invoice|report|summary|account|period/i.test(totalText);
     const hasDatePattern = /\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}|\w+ \d{1,2}, \d{4}/i.test(totalText);
     const hasAmountPattern = /\$[\d,]+\.?\d*|USD|EUR|GBP/i.test(totalText);
-    
-    // Check for certificate patterns - these are valid documents with graphics
     const hasCertificateKeywords = /certificate|certification|certified|diploma|award|achievement|completion|graduate|license|licence|accredited|qualification/i.test(totalText);
     const hasOfficialLanguage = /hereby|certify|certifies|awarded|granted|presented|conferred|issued|authority|institution|organization/i.test(totalText);
     const isCertificateDocument = hasCertificateKeywords && hasOfficialLanguage;
-    
-    const isLikelyHeaderPage = isFirstPage && (
-      hasLowTextContent || 
-      (hasHeaderKeywords && hasDatePattern && hasAmountPattern && textLength < 500)
-    ) && !isCertificateDocument; // Don't treat certificates as header pages
-    
+    const isLikelyHeaderPage = isFirstPage && (hasLowTextContent || (hasHeaderKeywords && hasDatePattern && hasAmountPattern && textLength < 500)) && !isCertificateDocument;
+
     this.log(`Page ${pageNumber} content analysis: textLength=${textLength}, textDensity=${textDensity.toFixed(1)}, isLikelyHeader=${isLikelyHeaderPage}, isCertificate=${isCertificateDocument}`);
-    
-    return {
-      isLikelyHeaderPage,
-      textDensity,
-      hasLowTextContent,
-      isCertificateDocument
-    };
+    return { isLikelyHeaderPage, textDensity, hasLowTextContent, isCertificateDocument };
   }
 
-  /**
-   * Advanced text sharpness analysis for PDF documents
-   */
-  private async analyzeTextSharpness(pdf: any, pageNumber: number): Promise<{
-    textSharpnessScore: number;
-    isTextBlurry: boolean;
-    textMetrics: any;
-  }> {
+  private async analyzeTextSharpness(pdf: any, pageNumber: number, maxRenderScale = 3.0): Promise<{ textSharpnessScore: number; isTextBlurry: boolean; textMetrics: any }> {
     const page = await pdf.getPage(pageNumber);
     const textContent = await page.getTextContent();
-    
-    if (textContent.items.length === 0) {
-      return {
-        textSharpnessScore: 0,
-        isTextBlurry: true,
-        textMetrics: { reason: 'No text found' }
-      };
-    }
+    if (textContent.items.length === 0) return { textSharpnessScore: 0, isTextBlurry: true, textMetrics: { reason: 'No text found' } };
 
-    // Render at high resolution for text analysis
-    const viewport = page.getViewport({ scale: 3.0 });
+    const scale = Math.min(3.0, maxRenderScale);
+    const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
-    if (!context) {
-      throw new Error('Could not get 2D context for text analysis');
-    }
-
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    // Render only text (no images) for cleaner analysis
-    const renderContext = { 
-      canvasContext: context, 
-      viewport,
-      intent: 'print' // Better text rendering
-    };
-    await page.render(renderContext).promise;
-
+    if (!context) throw new Error('Could not get 2D context for text analysis');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({ canvasContext: context, viewport, intent: 'print' }).promise;
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    
-    // Analyze text regions for sharpness
-    const textSharpness = this.calculateTextSharpness(imageData, textContent.items);
-    
-    this.log(`Page ${pageNumber} text sharpness analysis:`, textSharpness);
-    
-    return textSharpness;
+    const result = this.calculateTextSharpness(imageData, textContent.items);
+    this.log(`Page ${pageNumber} text sharpness analysis:`, result);
+    return result;
   }
 
-  /**
-   * Calculate sharpness specifically for text regions
-   */
-  private calculateTextSharpness(imageData: ImageData, textItems: any[]): {
-    textSharpnessScore: number;
-    isTextBlurry: boolean;
-    textMetrics: any;
-  } {
+  private calculateTextSharpness(imageData: ImageData, textItems: any[]): { textSharpnessScore: number; isTextBlurry: boolean; textMetrics: any } {
     const { data, width, height } = imageData;
-    let totalVariance = 0;
-    let sampleCount = 0;
-    let edgeIntensity = 0;
-
-    // Sample text regions more intelligently
-    const sampleSize = 5; // Size of sampling window
-    const stride = Math.max(1, Math.floor(Math.min(width, height) / 100)); // Adaptive stride
+    let totalVariance = 0, sampleCount = 0, edgeIntensity = 0;
+    const sampleSize = 5;
+    const stride = Math.max(1, Math.floor(Math.min(width, height) / 100));
 
     for (let y = 0; y < height - sampleSize; y += stride) {
       for (let x = 0; x < width - sampleSize; x += stride) {
-        // Calculate local variance in this region
-        let localSum = 0;
-        let localSumSq = 0;
-        let localCount = 0;
-        let maxGradient = 0;
-
+        let localSum = 0, localSumSq = 0, localCount = 0, maxGradient = 0;
         for (let dy = 0; dy < sampleSize; dy++) {
           for (let dx = 0; dx < sampleSize; dx++) {
             const idx = ((y + dy) * width + (x + dx)) * 4;
-            
-            // Convert to grayscale
             const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-            
-            localSum += gray;
-            localSumSq += gray * gray;
-            localCount++;
-
-            // Calculate gradient magnitude for edge detection
+            localSum += gray; localSumSq += gray * gray; localCount++;
             if (dx < sampleSize - 1 && dy < sampleSize - 1) {
-              const rightIdx = ((y + dy) * width + (x + dx + 1)) * 4;
-              const downIdx = ((y + dy + 1) * width + (x + dx)) * 4;
-              
-              const rightGray = 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
-              const downGray = 0.299 * data[downIdx] + 0.587 * data[downIdx + 1] + 0.114 * data[downIdx + 2];
-              
-              const gradX = rightGray - gray;
-              const gradY = downGray - gray;
-              const gradient = Math.sqrt(gradX * gradX + gradY * gradY);
-              
-              maxGradient = Math.max(maxGradient, gradient);
+              const rIdx = ((y + dy) * width + (x + dx + 1)) * 4;
+              const dIdx = ((y + dy + 1) * width + (x + dx)) * 4;
+              const gx = (0.299 * data[rIdx] + 0.587 * data[rIdx + 1] + 0.114 * data[rIdx + 2]) - gray;
+              const gy = (0.299 * data[dIdx] + 0.587 * data[dIdx + 1] + 0.114 * data[dIdx + 2]) - gray;
+              maxGradient = Math.max(maxGradient, Math.sqrt(gx * gx + gy * gy));
             }
           }
         }
-
         if (localCount > 0) {
           const mean = localSum / localCount;
           const variance = (localSumSq / localCount) - (mean * mean);
-          
-          // Weight regions with higher variance (likely text)
-          if (variance > 100) { // Threshold for text-like regions
-            totalVariance += variance;
-            edgeIntensity += maxGradient;
-            sampleCount++;
-          }
+          if (variance > 100) { totalVariance += variance; edgeIntensity += maxGradient; sampleCount++; }
         }
       }
     }
 
     const avgVariance = sampleCount > 0 ? totalVariance / sampleCount : 0;
     const avgEdgeIntensity = sampleCount > 0 ? edgeIntensity / sampleCount : 0;
-    
-    // Combined sharpness score
     const sharpnessScore = (avgVariance / 1000) + (avgEdgeIntensity / 50);
-    
-    // Thresholds based on typical text characteristics
-    const isTextBlurry = sharpnessScore < 0.8; // Adjust based on testing
-    
-    return {
-      textSharpnessScore: sharpnessScore,
-      isTextBlurry,
-      textMetrics: {
-        avgVariance,
-        avgEdgeIntensity,
-        sampleCount,
-        threshold: 0.8
-      }
-    };
+    const isTextBlurry = sharpnessScore < 0.8;
+    return { textSharpnessScore: sharpnessScore, isTextBlurry, textMetrics: { avgVariance, avgEdgeIntensity, sampleCount, threshold: 0.8 } };
   }
 
-  /**
-   * Analyze a PDF file for quality and blur
-   */
-  async analyzePDF(file: File): Promise<PDFAnalysisResult> {
+  async analyzePDF(file: File, perfOptions?: { maxPages?: number; samplePages?: 'first' | 'all' | 'smart' | number[]; maxRenderScale?: number; timeoutMs?: number }): Promise<PDFAnalysisResult> {
     this.log('Starting PDF analysis for file:', file.name);
+    const maxPages = perfOptions?.maxPages ?? Infinity;
+    const samplePages = perfOptions?.samplePages ?? 'all';
+    const maxRenderScale = perfOptions?.maxRenderScale ?? 2.0;
+    const timeoutMs = perfOptions?.timeoutMs ?? 30000;
 
-    if (!this.pdfLib) {
-      await this.loadPdfJS();
-    }
+    if (!this.pdfLib) await this.loadPdfJS();
 
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await this.pdfLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+      const totalPages = pdf.numPages;
+      let extractedText = '', isScanned = false;
+      const pageResults: BlurAnalysisResult[] = [], corruptedPages: Array<{ page: number; error: string }> = [];
+      let incomplete = false, incompleteReason: string | undefined;
 
-      let extractedText = '';
-      let isScanned = false;
-      const pageResults: BlurAnalysisResult[] = [];
+      this.log(`PDF has ${totalPages} pages`);
 
-      this.log(`PDF has ${pdf.numPages} pages`);
+      let pagesToAnalyze: number[] = [];
+      if (Array.isArray(samplePages)) pagesToAnalyze = samplePages.filter(p => p >= 1 && p <= totalPages).slice(0, maxPages);
+      else if (samplePages === 'first') pagesToAnalyze = [1];
+      else if (samplePages === 'smart') {
+        const smart: number[] = [];
+        for (let i = 1; i <= totalPages; i++) if (i === 1 || i === totalPages || i % 5 === 0) smart.push(i);
+        pagesToAnalyze = smart.slice(0, maxPages);
+      } else pagesToAnalyze = Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, maxPages);
 
-      // Check all pages for text content and quality
-      for (let i = 1; i <= pdf.numPages; i++) {
-        this.log(`Analyzing page ${i}/${pdf.numPages}`);
-        
+      if (pagesToAnalyze.length < totalPages && maxPages < totalPages) { incomplete = true; incompleteReason = `Page cap: analyzed ${pagesToAnalyze.length}/${totalPages}`; }
+      const skippedPages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => !pagesToAnalyze.includes(p));
+      const startTime = Date.now();
+
+      for (const i of pagesToAnalyze) {
+        if (Date.now() - startTime > timeoutMs) { incomplete = true; incompleteReason = `Timeout: stopped at page ${i}`; break; }
+        this.log(`Analyzing page ${i}/${totalPages}`);
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-
-        // Check if page has text content
-        if (textContent.items.length === 0) {
-          isScanned = true;
-        }
-
+        if (textContent.items.length === 0) isScanned = true;
         extractedText += textContent.items.map((item: any) => item.str).join(' ');
 
-        // Analyze page for blur using multiple methods
         try {
-          // First, analyze page content to understand its nature
           const contentAnalysis = this.analyzePageContent(textContent, i);
-          
-          const pageAnalysis = await this.checkPdfPageQuality(pdf, i);
-          
-          // For text-based PDFs, also do text sharpness analysis
+          const pageAnalysis = await this.checkPdfPageQuality(pdf, i, maxRenderScale);
+
           if (textContent.items.length > 0) {
             try {
-              const textSharpness = await this.analyzeTextSharpness(pdf, i);
-              
-              // Smart blur decision based on content type
+              const textSharpness = await this.analyzeTextSharpness(pdf, i, maxRenderScale);
               let finalIsBlurry = pageAnalysis.isBlurry || textSharpness.isTextBlurry;
-              
-              // If this looks like a certificate, be very lenient (certificates often have graphics)
-              if (contentAnalysis.isCertificateDocument) {
-                // Only consider blurry if text sharpness is very poor
-                finalIsBlurry = textSharpness.textSharpnessScore < 0.3; // Very lenient for certificates
-                this.log(`Page ${i} identified as certificate document - using very lenient blur criteria`);
-              }
-              // If this looks like a header/logo page, be more lenient
-              else if (contentAnalysis.isLikelyHeaderPage) {
-                // Only consider blurry if text sharpness is very poor
-                finalIsBlurry = textSharpness.textSharpnessScore < 0.5; // More lenient threshold
-                this.log(`Page ${i} identified as likely header/logo page - using lenient blur criteria`);
-              }
-              
-              const combinedResult: BlurAnalysisResult = {
-                ...pageAnalysis,
-                isBlurry: finalIsBlurry,
-                confidence: Math.max(pageAnalysis.confidence, textSharpness.textSharpnessScore),
-                method: `${pageAnalysis.method} + Text Analysis${contentAnalysis.isCertificateDocument ? ' (Certificate-adjusted)' : contentAnalysis.isLikelyHeaderPage ? ' (Header-adjusted)' : ''}`,
-                metrics: {
-                  ...pageAnalysis.metrics,
-                  textSharpness: textSharpness,
-                  contentAnalysis: contentAnalysis
-                }
-              };
-              
-              pageResults.push(combinedResult);
-              this.log(`Page ${i} combined analysis:`, combinedResult);
-            } catch (textError) {
-              this.log(`Text analysis failed for page ${i}:`, textError);
-              pageResults.push(pageAnalysis);
-            }
-          } else {
-            pageResults.push(pageAnalysis);
-          }
-          
+              if (contentAnalysis.isCertificateDocument) { finalIsBlurry = textSharpness.textSharpnessScore < 0.3; this.log(`Page ${i} identified as certificate - lenient blur`); }
+              else if (contentAnalysis.isLikelyHeaderPage) { finalIsBlurry = textSharpness.textSharpnessScore < 0.5; this.log(`Page ${i} identified as header/logo - lenient blur`); }
+
+              pageResults.push({ ...pageAnalysis, isBlurry: finalIsBlurry, confidence: Math.max(pageAnalysis.confidence, textSharpness.textSharpnessScore), method: `${pageAnalysis.method} + Text Analysis${contentAnalysis.isCertificateDocument ? ' (Certificate-adjusted)' : contentAnalysis.isLikelyHeaderPage ? ' (Header-adjusted)' : ''}`, metrics: { ...pageAnalysis.metrics, textSharpness, contentAnalysis } });
+              this.log(`Page ${i} combined analysis done`);
+            } catch (textError) { this.log(`Text analysis failed for page ${i}:`, textError); pageResults.push(pageAnalysis); }
+          } else { pageResults.push(pageAnalysis); }
         } catch (error) {
           this.log(`Failed to analyze page ${i}:`, error);
-          // Continue with other pages
+          corruptedPages.push({ page: i, error: error instanceof Error ? error.message : 'Unknown page analysis error' });
         }
       }
 
-      // Determine if PDF is scanned based on text content
-      const isTextBased = extractedText.length >= 10;
-      const finalIsScanned = isScanned || !isTextBased;
-
+      const finalIsScanned = isScanned || extractedText.length < 10;
       this.log(`PDF analysis complete. Scanned: ${finalIsScanned}, Text length: ${extractedText.length}`);
 
-      // Determine overall quality with smart logic for first page issues
       let isQualityGood = true;
-      
       if (pageResults.length > 0) {
-        const blurryPages = pageResults.filter(result => result.isBlurry);
-        
-        // Smart quality assessment for multi-page documents
+        const blurryPages = pageResults.filter(r => r.isBlurry);
         if (pageResults.length > 1) {
-          // For multi-page docs, use majority rule but be lenient with first page
-          const nonFirstPageResults = pageResults.slice(1);
-          const blurryNonFirstPages = nonFirstPageResults.filter(result => result.isBlurry);
-          
-          // If first page is blurry but rest are clear, likely false positive
-          const firstPageBlurry = pageResults[0].isBlurry;
-          const restPagesBlurry = blurryNonFirstPages.length > 0;
-          
-          if (firstPageBlurry && !restPagesBlurry) {
-            // First page alone is blurry - likely contains graphics/logos
-            this.log('First page marked as blurry but rest are clear - likely false positive due to graphics/logos');
-            isQualityGood = true;
-          } else if (blurryNonFirstPages.length >= Math.ceil(nonFirstPageResults.length / 2)) {
-            // Majority of non-first pages are blurry
-            isQualityGood = false;
-          } else {
-            // Most pages are clear
-            isQualityGood = true;
-          }
-          
-          this.log(`Smart quality check: First page blurry: ${firstPageBlurry}, Rest pages blurry: ${blurryNonFirstPages.length}/${nonFirstPageResults.length}, Final decision: ${isQualityGood ? 'Good' : 'Poor'}`);
-        } else {
-          // Single page - use original logic
-          isQualityGood = blurryPages.length === 0;
-          this.log(`Single page quality check: ${blurryPages.length}/${pageResults.length} pages are blurry`);
-        }
-        
-        this.log(`PDF type: ${finalIsScanned ? 'Scanned' : 'Text-based'}`);
+          const nonFirst = pageResults.slice(1);
+          const blurryNonFirst = nonFirst.filter(r => r.isBlurry);
+          if (pageResults[0].isBlurry && blurryNonFirst.length === 0) { isQualityGood = true; this.log('First page blurry but rest clear - likely false positive'); }
+          else if (blurryNonFirst.length >= Math.ceil(nonFirst.length / 2)) isQualityGood = false;
+          else isQualityGood = true;
+        } else { isQualityGood = blurryPages.length === 0; }
       }
 
-      const result: PDFAnalysisResult = {
-        isQualityGood,
-        isScanned: finalIsScanned,
-        pagesAnalyzed: pdf.numPages,
-        textLength: extractedText.length,
-        pageResults: pageResults.length > 0 ? pageResults : undefined
-      };
-
+      const result: PDFAnalysisResult = { isQualityGood, isScanned: finalIsScanned, pagesAnalyzed: pagesToAnalyze.length, textLength: extractedText.length, pageResults: pageResults.length ? pageResults : undefined, corruptedPages: corruptedPages.length ? corruptedPages : undefined, incomplete, incompleteReason, totalPages, skippedPages: skippedPages.length ? skippedPages : undefined };
       this.log('Final PDF analysis result:', result);
       return result;
-
     } catch (error) {
       this.log('PDF analysis failed:', error);
       throw new Error(`PDF analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  /**
-   * Quick check if a PDF is of good quality
-   */
-  async isGoodQuality(file: File): Promise<boolean> {
-    const result = await this.analyzePDF(file);
-    return result.isQualityGood;
-  }
+  async isGoodQuality(file: File): Promise<boolean> { return (await this.analyzePDF(file)).isQualityGood; }
 }

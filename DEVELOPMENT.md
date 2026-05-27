@@ -1,235 +1,112 @@
 # Development Guide
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
-blurry-check-package/
-├── src/                    # Source code
-│   ├── index.ts           # Main entry point
-│   ├── blur-detector.ts   # Core blur detection logic
-│   ├── pdf-analyzer.ts    # PDF analysis functionality
-│   ├── opencv-loader.ts   # OpenCV.js loader utility
-│   ├── filters.ts         # Canvas filter utilities
-│   ├── types.ts          # TypeScript type definitions
-│   └── __tests__/        # Test files
-├── lib/                   # Built output (generated)
-├── demo/                  # Next.js demo application
-├── examples/              # Framework examples
-│   ├── vanilla-js.html    # Pure JavaScript example
-│   ├── vue-example.vue    # Vue 3 component
-│   └── angular-example.ts # Angular component
+blurry-check/
+├── src/
+│   ├── index.ts                     # Entry point, BlurryCheck class, convenience exports
+│   ├── blur-detector.ts             # Edge detection + OpenCV Laplacian blur analysis
+│   ├── pdf-analyzer.ts              # PDF.js rendering, page metrics, text sharpness
+│   ├── opencv-loader.ts             # Singleton OpenCV.js loader
+│   ├── filters.ts                   # Canvas Sobel/luminance/convolution filters
+│   ├── image-utils.ts               # ImageData extraction from various inputs
+│   ├── utils.ts                     # Shared clamp/score/statusFor/makeCheck helpers
+│   ├── constants.ts                 # All threshold constants
+│   ├── types.ts                     # TypeScript interfaces
+│   ├── issue-catalog.ts             # 19 stable issue codes + messages + recommendations
+│   ├── mode-config.ts               # 9 mode presets + 3 strictness levels
+│   ├── globals.d.ts                 # Ambient window declarations (cv, pdfjsLib)
+│   ├── test-setup.ts                # Jest JSDOM mocks
+│   ├── validators/
+│   │   ├── file-validator.ts        # MIME, extension, magic-byte checks
+│   │   ├── image-quality-validator.ts  # Blur/brightness/contrast/resolution/blank checks
+│   │   ├── pdf-quality-validator.ts    # Per-page PDF validation
+│   │   └── validate-page.ts         # Single PDF page validation logic
+│   └── __tests__/
+│       ├── blur-detector.test.ts    # Image validator + BlurDetector tests
+│       ├── pdf-validator.test.ts    # PDF validator regression tests
+│       └── file-validator.test.ts   # File format + spoofed file tests
+├── demo/                            # Next.js demo application
+├── lib/                             # Built output (ESM, CJS, UMD)
 ├── package.json
-├── tsconfig.json
 ├── rollup.config.js
-└── README.md
+├── tsconfig.json
+└── jest.config.js
 ```
 
-## 🚀 Getting Started
-
-### Installation
+## Getting Started
 
 ```bash
-# Install dependencies
-npm install
-
-# Build the package
-npm run build
-
-# Run tests
-npm test
-
-# Run linting
-npm run lint
+npm install        # Install deps
+npm run build      # Build the package
+npm test           # Run all 42 tests
+npm run typecheck  # TypeScript compiler check
+npm run lint       # ESLint
 ```
 
-### Development Workflow
+## Development Workflow
 
-1. **Make changes** to source files in `src/`
-2. **Run tests** with `npm test`
-3. **Build package** with `npm run build`
-4. **Test in demo** by running the Next.js demo
-
-### Demo Application
-
-The demo application is located in the `demo/` directory:
+1. Make changes to source files in `src/`
+2. Run `npm test` to verify
+3. Run `npm run build` to rebuild the package
+4. Test in demo:
 
 ```bash
-cd demo
-npm install
-npm run dev
+cp -r lib/* demo/src/lib/   # Copy built package into demo
+cd demo && npm run dev       # Start Next.js dev server at localhost:3000
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) to test the package.
+## Build Outputs
 
-## 📝 Scripts
+Built by Rollup:
 
-- `npm run build` - Build the package for distribution
-- `npm run dev` - Build in watch mode
-- `npm test` - Run test suite
-- `npm run lint` - Run ESLint
-- `npm run typecheck` - Run TypeScript compiler check
-- `npm run clean` - Clean build directory
+| Format | File | Usage |
+|---|---|---|
+| ESM | `lib/index.esm.js` | Modern bundlers (webpack, Vite, etc.) |
+| CJS | `lib/index.js` | Node.js |
+| UMD | `lib/index.umd.js` | Browser `<script>` tags |
 
-## 🔧 Building
+## Testing
 
-The package is built using Rollup and outputs multiple formats:
-
-- **ESM** (`lib/index.esm.js`) - For modern bundlers
-- **CommonJS** (`lib/index.js`) - For Node.js
-- **UMD** (`lib/index.umd.js`) - For browsers
-
-## 🧪 Testing
-
-Tests are written using Jest and run in a JSDOM environment:
+Jest with JSDOM environment. 42 tests across 3 suites:
 
 ```bash
-# Run all tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run specific test file
-npm test blur-detector.test.ts
+npm test                    # All tests
+npm run test:watch          # Watch mode
+npx jest blur-detector      # Specific suite
 ```
 
-## 📦 Publishing
+## Architecture
 
-Before publishing:
+### Detection Pipeline
+
+```
+User Input (File / ImageData / HTMLImageElement / HTMLCanvasElement)
+  → image-utils.ts: getImageDataFromInput()
+  → blur-detector.ts: analyzeImage()
+    ├── Edge: luminance → Sobel → edge-width scan
+    └── Laplacian: cv.cvtColor → cv.Laplacian → variance
+```
+
+### Validation Pipeline
+
+```
+User File + Options
+  → file-validator.ts: MIME/ext/magic-bytes
+  → mode-config.ts: resolve mode + strictness defaults
+  → image-quality-validator.ts / pdf-quality-validator.ts:
+    ├── Resolution, Brightness, Contrast, Blur, Blank
+    └── issue-catalog.ts: stable codes → messages + recommendations
+  → QualityValidationResult { ok, score, issues, warnings, checks, recommendations }
+```
+
+## Publishing
 
 1. Update version in `package.json`
-2. Run `npm run build`
-3. Run `npm test`
-4. Update `CHANGELOG.md`
-5. Run `npm publish`
+2. `npm run build && npm test`
+3. `npm publish`
 
-## 🔍 Architecture
+## License
 
-### Core Components
-
-1. **BlurDetector**: Main blur detection logic
-   - Edge detection algorithm
-   - OpenCV integration
-   - Configuration management
-
-2. **PDFAnalyzer**: PDF quality analysis
-   - PDF.js integration
-   - Text extraction
-   - Page-by-page analysis
-
-3. **OpenCVLoader**: Dynamic OpenCV loading
-   - Singleton pattern
-   - Error handling
-   - Loading state management
-
-4. **Filters**: Canvas image processing
-   - Luminance conversion
-   - Convolution operations
-   - Edge detection filters
-
-### Detection Methods
-
-1. **Edge Detection**: Fast, client-side only
-   - Sobel edge detection
-   - Edge width analysis
-   - Percentage calculation
-
-2. **OpenCV Laplacian**: High accuracy
-   - Laplacian variance
-   - Computer vision algorithms
-   - Requires external library
-
-3. **Combined**: Best of both worlds
-   - Fallback mechanism
-   - Confidence scoring
-   - Multiple metrics
-
-## 🌐 Framework Integration
-
-The package is designed to work with any JavaScript framework:
-
-### React/Next.js
-```tsx
-import { BlurryCheck } from 'blurry-check';
-const checker = new BlurryCheck();
-const isBlurry = await checker.isImageBlurry(file);
-```
-
-### Vue
-```vue
-<script setup>
-import { BlurryCheck } from 'blurry-check';
-const checker = new BlurryCheck();
-</script>
-```
-
-### Angular
-```typescript
-import { BlurryCheck } from 'blurry-check';
-@Component({ ... })
-export class MyComponent {
-  private checker = new BlurryCheck();
-}
-```
-
-### Vanilla JS
-```html
-<script src="https://unpkg.com/blurry-check/lib/index.umd.js"></script>
-<script>
-const checker = new BlurryCheck.default();
-</script>
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **OpenCV fails to load**
-   - Check network connection
-   - Try custom OpenCV URL
-   - Fall back to edge detection
-
-2. **Canvas errors in Node.js**
-   - Install `canvas` package
-   - Use server-side detection carefully
-
-3. **Memory issues with large files**
-   - Resize images before analysis
-   - Use smaller canvas elements
-   - Implement file size limits
-
-### Debug Mode
-
-Enable debug logging:
-
-```javascript
-const checker = new BlurryCheck({ debug: true });
-```
-
-This will log detailed information about:
-- Method selection
-- Analysis progress
-- Performance metrics
-- Error details
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Update documentation
-7. Submit a pull request
-
-### Code Style
-
-- Use TypeScript for all new code
-- Follow existing naming conventions
-- Add JSDoc comments for public APIs
-- Write tests for new features
-- Update README for user-facing changes
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
+MIT
